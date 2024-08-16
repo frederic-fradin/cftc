@@ -3,6 +3,7 @@ import os
 import requests
 from zipfile import ZipFile
 from datetime import date
+import streamlit as st
 
 today = date.today()
 current_year = today.year
@@ -59,14 +60,46 @@ def consolidate_com_disagg() -> None:
         # checking if it is a file
         if os.path.isfile(file) and split_tup[1] == '.txt':
             raw = pd.read_table(file, delimiter=",", low_memory=False)
-            select = raw.iloc[:,:23]
+            first_23_columns = raw.iloc[:, :23]
+            last_6_columns = raw.iloc[:, -6:]
+            select = pd.concat([first_23_columns, last_6_columns], axis=1)
             init = pd.concat([init, select], axis=0)
             init.replace('.', 0, inplace=True)
 
-    print(f'CFTC consolidé : {init.shape}')
     init.to_parquet('../data/processed/cftc.parquet', engine='fastparquet')
+    print('Consolidate with success!')
 
+    keep_columns = ['Market_and_Exchange_Names', 'As_of_Date_In_Form_YYMMDD',
+       'Report_Date_as_MM_DD_YYYY', 'CFTC_Contract_Market_Code',
+       'CFTC_Market_Code', 'CFTC_Region_Code', 'CFTC_Commodity_Code',
+       'Contract_Units', 'CFTC_Contract_Market_Code_Quotes',
+       'CFTC_Market_Code_Quotes', 'CFTC_Commodity_Code_Quotes',
+       'CFTC_SubGroup_Code', 'FutOnly_or_Combined',
+       'Report_Date_as_YYYY-MM-DD']
+
+    # Melting the DataFrame to transform other columns into rows
+    df_melted = init.melt(id_vars=keep_columns, 
+                        var_name='argument', 
+                        value_name='value')
+
+    df_melted['As_of_Date_In_Form_YYMMDD'] = pd.to_datetime(df_melted['As_of_Date_In_Form_YYMMDD'])
+    df_melted['Report_Date_as_MM_DD_YYYY'] = pd.to_datetime(df_melted['Report_Date_as_MM_DD_YYYY'])
+    df_melted['Report_Date_as_YYYY-MM-DD'] = pd.to_datetime(df_melted['Report_Date_as_YYYY-MM-DD'])
+
+    print(f'Melt dataframe with success!', end='\n\n')
+    df_melted.to_parquet('../data/cleaned/cftc.parquet', engine='fastparquet')
+    print(df_melted.info())
+
+@st.cache_data
+def read_com_disagg() -> object:
+    df = pd.read_parquet('./data/cleaned/cftc.parquet', engine='fastparquet')
+
+    market_code = df['CFTC_Market_Code'].unique().tolist()
+
+    return df, market_code
 
 if __name__ == "__main__":
-    load_com_disagg(current_year)
+    for i in range(2024, 2024, 1):
+        load_com_disagg(i)
+    # load_com_disagg(current_year)
     consolidate_com_disagg()
