@@ -2,6 +2,10 @@ import pandas as pd
 import os
 import requests
 from zipfile import ZipFile
+from datetime import date
+
+today = date.today()
+current_year = today.year
 
 '''
 Text file per year from 
@@ -56,7 +60,6 @@ def consolidate_com_disagg() -> None:
         if os.path.isfile(file) and split_tup[1] == '.txt':
             raw = pd.read_table(file, delimiter=",", low_memory=False)
             select = raw.iloc[:,:23]
-            print(select.shape)
             init = pd.concat([init, select], axis=0)
             init.replace('.', 0, inplace=True)
 
@@ -65,4 +68,5 @@ def consolidate_com_disagg() -> None:
 
 
 if __name__ == "__main__":
+    load_com_disagg(current_year)
     consolidate_com_disagg()
