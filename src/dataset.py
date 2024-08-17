@@ -9,7 +9,7 @@ today = date.today()
 current_year = today.year
 
 '''
-Text file per year from 
+Text file per year from
 https://www.cftc.gov/MarketReports/CommitmentsofTraders/HistoricalCompressed/index.htm
 
 Disaggregated Futures-and-Options Combined Reports
@@ -82,24 +82,58 @@ def consolidate_com_disagg() -> None:
                         var_name='argument', 
                         value_name='value')
 
-    df_melted['As_of_Date_In_Form_YYMMDD'] = pd.to_datetime(df_melted['As_of_Date_In_Form_YYMMDD'])
-    df_melted['Report_Date_as_MM_DD_YYYY'] = pd.to_datetime(df_melted['Report_Date_as_MM_DD_YYYY'])
-    df_melted['Report_Date_as_YYYY-MM-DD'] = pd.to_datetime(df_melted['Report_Date_as_YYYY-MM-DD'])
+    df_melted['Market_and_Exchange_Names'] = df_melted['Market_and_Exchange_Names'].str.rstrip()
+    df_melted['CFTC_Market_Code'] = df_melted['CFTC_Market_Code'].str.rstrip()
+    df_melted['Market_and_Exchange_Names'] = df_melted.apply(lambda row: row['Market_and_Exchange_Names'].split(' - ')[0], axis=1)
+                                                   
+    df_melted['Classifications'] = df_melted.apply(lambda row: row['argument'].split('_')[0] 
+                                                    if row['argument'].split('_')[0] in ['Swap', 'NonRept'] else
+                                                    row['argument'].split('_')[0] + row['argument'].split('_')[1], axis=1)
+    
+    df_melted['Position_type'] = df_melted.apply(lambda row: row['argument'].split('_')[-2], axis=1)
+    
+    df_melted['Value_signed'] = df_melted.apply(lambda row: row['value'] * -1 if row['Position_type'] == 'Short'
+                                                    else row['value'], axis=1)
 
     print(f'Melt dataframe with success!', end='\n\n')
     df_melted.to_parquet('../data/cleaned/cftc.parquet', engine='fastparquet')
-    print(df_melted.info())
 
 @st.cache_data
-def read_com_disagg() -> object:
-    df = pd.read_parquet('./data/cleaned/cftc.parquet', engine='fastparquet')
+def load_parquet(filename:str) -> object:
+    df = pd.read_parquet(f'./data/cleaned/{filename}.parquet', engine='fastparquet')
 
-    market_code = df['CFTC_Market_Code'].unique().tolist()
+    return df
 
-    return df, market_code
+@st.cache_data
+def read_args_com_disagg() -> list:
+    df = load_parquet('cftc')
+
+    pvt_args = pd.pivot_table(df,
+                    index=['CFTC_Market_Code', 'Market_and_Exchange_Names', 'Classifications', 'Position_type'],
+                    values=['CFTC_Region_Code'],
+                    aggfunc='count').reset_index().drop_duplicates()
+
+    return pvt_args
+
+def read_com_disagg(exchange:list, market:list, classif:list, position:list) -> object:
+    df = load_parquet('cftc')
+
+    df['As_of_Date_In_Form_YYMMDD'] = pd.to_datetime(df['As_of_Date_In_Form_YYMMDD'], format='%y%m%d').dt.date
+
+    df = df[(df['CFTC_Market_Code'].isin(exchange)) &
+            (df['Market_and_Exchange_Names'].isin(market)) &
+            (df['Classifications'].isin(classif)) &
+            (df['Position_type'].isin(position))
+            ].copy()
+
+    df = df[['Market_and_Exchange_Names', 'As_of_Date_In_Form_YYMMDD',
+       'CFTC_Market_Code', 'Contract_Units', 'CFTC_SubGroup_Code',
+       'Classifications', 'Position_type', 'Value_signed']].copy()
+
+    return df
 
 if __name__ == "__main__":
-    for i in range(2024, 2024, 1):
-        load_com_disagg(i)
-    # load_com_disagg(current_year)
+    # for i in range(2024, 2025, 1):
+        # load_com_disagg(i)
+    load_com_disagg(current_year)
     consolidate_com_disagg()
