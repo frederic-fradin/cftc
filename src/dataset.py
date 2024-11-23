@@ -98,13 +98,11 @@ def consolidate_com_disagg() -> None:
     print(f'Melt dataframe with success!', end='\n\n')
     df_melted.to_parquet('../data/cleaned/cftc.parquet', engine='fastparquet')
 
-@st.cache_data
 def load_parquet(filename:str) -> object:
-    df = pd.read_parquet(f'./data/cleaned/{filename}.parquet', engine='fastparquet')
+    df = pd.read_parquet(f'../data/cleaned/{filename}.parquet', engine='fastparquet')
 
     return df
 
-@st.cache_data
 def read_args_com_disagg() -> list:
     df = load_parquet('cftc')
 
@@ -133,7 +131,7 @@ def read_com_disagg(exchange:list, market:list, classif:list, position:list) -> 
     return df
 
 if __name__ == "__main__":
-    # for i in range(2024, 2025, 1):
-        # load_com_disagg(i)
+    for i in range(2015, 2025, 1):
+        load_com_disagg(i)
     load_com_disagg(current_year)
     consolidate_com_disagg()

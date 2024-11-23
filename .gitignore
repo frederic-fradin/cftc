@@ -4,3 +4,5 @@ env/
 /data/cleaned/
 /data/processed/
 /data/raw/
+notebooks/files/*
+cache/cache_db_0.11.db
